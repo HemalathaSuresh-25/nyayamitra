@@ -1,168 +1,161 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { supabase } from '@/lib/supabase';
 
-const DATA_FILE = path.join(process.cwd(), 'data', 'directory.json');
-
-function readData() {
-  try {
-    if (!fs.existsSync(path.dirname(DATA_FILE))) {
-      fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-    }
-    if (!fs.existsSync(DATA_FILE)) {
-      fs.writeFileSync(DATA_FILE, JSON.stringify({ clients: [], lawyers: [], chats: {}, cases: [] }));
-    }
-    const parsed = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-    // Ensure all required fields exist
-    if (!parsed.clients) parsed.clients = [];
-    if (!parsed.lawyers) parsed.lawyers = [];
-    if (!parsed.chats) parsed.chats = {};
-    if (!parsed.cases) parsed.cases = [];
-    return parsed;
-  } catch {
-    return { clients: [], lawyers: [], chats: {}, cases: [] };
-  }
+// Helper to map Supabase naming to Frontend naming
+function mapCase(c: any) {
+  if (!c) return null;
+  return {
+    ...c,
+    issueType: c.category,
+    clientEmail: c.client_email,
+    lawyerEmail: c.lawyer_email,
+    lawyerName: c.lawyer_name
+  };
 }
 
-function writeData(data: any) {
-  if (!fs.existsSync(path.dirname(DATA_FILE))) {
-    fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  }
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
-
-// GET /api/directory?type=clients|lawyers|chat|user_chats&chatKey=xxx&email=xxx
+// GET /api/directory?type=clients|lawyers|chat|user_chats|cases&chatKey=xxx&email=xxx
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get('type');
   const chatKey = searchParams.get('chatKey');
   const email = searchParams.get('email');
-  const data = readData();
 
-  if (type === 'clients') return NextResponse.json(data.clients || []);
-  if (type === 'lawyers') return NextResponse.json(data.lawyers || []);
-  if (type === 'cases') return NextResponse.json(data.cases || []);
-  if (type === 'chat' && chatKey) return NextResponse.json(data.chats?.[chatKey] || []);
+  try {
+    if (type === 'clients') {
+      const { data, error } = await supabase.from('clients').select('*');
+      if (error) throw error;
+      return NextResponse.json(data || []);
+    }
 
-  // Return all chats involving a specific user email
-  if (type === 'user_chats' && email) {
-    const userChats: { chatKey: string; messages: any[]; otherEmail: string }[] = [];
-    const chats = data.chats || {};
-    Object.keys(chats).forEach(key => {
-      if (key.includes(email)) {
-        const parts = key.split('__');
-        if (parts.length === 2) {
-          const otherEmail = parts[0] === email ? parts[1] : parts[0];
-          userChats.push({ chatKey: key, messages: chats[key], otherEmail });
-        }
-      }
-    });
-    return NextResponse.json(userChats);
+    if (type === 'lawyers') {
+      const { data, error } = await supabase.from('lawyers').select('*');
+      if (error) throw error;
+      return NextResponse.json(data || []);
+    }
+
+    if (type === 'cases') {
+      const { data, error } = await supabase.from('cases').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return NextResponse.json((data || []).map(mapCase));
+    }
+
+    if (type === 'chat' && chatKey) {
+      const { data, error } = await supabase.from('chats').select('messages').eq('chat_key', chatKey).single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return NextResponse.json(data?.messages || []);
+    }
+
+    if (type === 'user_chats' && email) {
+      const { data, error } = await supabase.from('chats').select('*').ilike('chat_key', `%${email}%`);
+      if (error) throw error;
+      
+      const userChats = (data || []).map(c => {
+        const parts = c.chat_key.split('__');
+        const otherEmail = parts[0] === email ? parts[1] : parts[0];
+        return { chatKey: c.chat_key, messages: c.messages, otherEmail };
+      });
+      return NextResponse.json(userChats);
+    }
+
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+  } catch (err: any) {
+    console.error('Supabase GET Error:', err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  return NextResponse.json(data);
 }
 
 // POST /api/directory
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const data = readData();
+  const { action, payload } = body;
 
-  if (body.action === 'register_client') {
-    const entry = body.payload;
-    const idx = data.clients.findIndex((c: any) => c.email?.toLowerCase() === entry.email?.toLowerCase());
-    if (idx > -1) {
-      data.clients[idx] = entry;
-    } else {
-      data.clients.push(entry);
-    }
-    writeData(data);
-    return NextResponse.json({ success: true });
-  }
-
-  if (body.action === 'register_lawyer') {
-    const entry = body.payload;
-    const idx = data.lawyers.findIndex((l: any) => l.email?.toLowerCase() === entry.email?.toLowerCase());
-    if (idx > -1) data.lawyers[idx] = entry;
-    else data.lawyers.push(entry);
-    writeData(data);
-    return NextResponse.json({ success: true });
-  }
-
-  if (body.action === 'send_message') {
-    const { chatKey, message } = body.payload;
-    if (!data.chats[chatKey]) data.chats[chatKey] = [];
-    data.chats[chatKey].push(message);
-    writeData(data);
-    return NextResponse.json({ success: true });
-  }
-
-  if (body.action === 'accept_client') {
-    const { clientEmail, lawyerEmail, lawyerName } = body.payload;
-    const idx = data.clients.findIndex((c: any) => c.email?.toLowerCase() === clientEmail?.toLowerCase());
-    if (idx > -1) {
-      data.clients[idx].status = 'Accepted';
-      data.clients[idx].acceptedBy = lawyerName;
-      data.clients[idx].acceptedByEmail = lawyerEmail;
-      data.clients[idx].acceptedAt = Date.now();
-      data.clients[idx].rejectedBy = (data.clients[idx].rejectedBy || []).filter((e: string) => e !== lawyerEmail);
-      writeData(data);
+  try {
+    if (action === 'register_client') {
+      const { error } = await supabase.from('clients').upsert({
+        email: payload.email,
+        name: payload.name,
+        role: 'client'
+      }, { onConflict: 'email' });
+      if (error) throw error;
       return NextResponse.json({ success: true });
     }
-    return NextResponse.json({ error: 'Client not found' }, { status: 404 });
-  }
 
-  if (body.action === 'reject_client') {
-    const { clientEmail, lawyerEmail } = body.payload;
-    const idx = data.clients.findIndex((c: any) => c.email?.toLowerCase() === clientEmail?.toLowerCase());
-    if (idx > -1) {
-      if (!data.clients[idx].rejectedBy) data.clients[idx].rejectedBy = [];
-      if (!data.clients[idx].rejectedBy.includes(lawyerEmail)) {
-        data.clients[idx].rejectedBy.push(lawyerEmail);
-      }
-      if (data.clients[idx].acceptedByEmail === lawyerEmail) {
-        data.clients[idx].status = 'Pending';
-        data.clients[idx].acceptedBy = null;
-        data.clients[idx].acceptedByEmail = null;
-        data.clients[idx].acceptedAt = null;
-      }
-      writeData(data);
+    if (action === 'register_lawyer') {
+      const { error } = await supabase.from('lawyers').upsert({
+        email: payload.email,
+        name: payload.name,
+        bio: payload.bio,
+        experience: payload.experience,
+        role: 'lawyer'
+      }, { onConflict: 'email' });
+      if (error) throw error;
       return NextResponse.json({ success: true });
     }
-    return NextResponse.json({ error: 'Client not found' }, { status: 404 });
-  }
 
-  if (body.action === 'file_case') {
-    const entry = body.payload;
-    if (!data.cases) data.cases = [];
-    data.cases.unshift(entry);
-    writeData(data);
-    return NextResponse.json({ success: true });
-  }
-
-  if (body.action === 'solve_case') {
-    const { caseId, lawyerEmail } = body.payload;
-    if (!data.cases) data.cases = [];
-    const cIdx = data.cases.findIndex((c: any) => c.id === caseId);
-    if (cIdx > -1) {
-      const clientEmail = data.cases[cIdx].clientEmail;
-      if (!clientEmail || !lawyerEmail) {
-        return NextResponse.json({ error: 'Missing email' }, { status: 400 });
-      }
-      const client = data.clients.find((c: any) => c.email?.toLowerCase() === clientEmail.toLowerCase());
-      if (!client || client.acceptedByEmail?.toLowerCase() !== lawyerEmail.toLowerCase()) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-      }
-      data.cases[cIdx].status = 'Solved';
-      const clIdx = data.clients.findIndex((c: any) => c.email?.toLowerCase() === clientEmail.toLowerCase());
-      if (clIdx > -1) {
-        data.clients[clIdx].status = 'Solved';
-      }
-      writeData(data);
+    if (action === 'send_message') {
+      const { chatKey, message } = payload;
+      const { data: chatData } = await supabase.from('chats').select('messages').eq('chat_key', chatKey).single();
+      const messages = chatData?.messages || [];
+      messages.push(message);
+      
+      const { error } = await supabase.from('chats').upsert({
+        chat_key: chatKey,
+        messages: messages,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'chat_key' });
+      
+      if (error) throw error;
       return NextResponse.json({ success: true });
     }
-    return NextResponse.json({ error: 'Case not found' }, { status: 404 });
-  }
 
-  return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+    if (action === 'accept_client') {
+      const { clientEmail, lawyerEmail, lawyerName } = payload;
+      const { error: cErr } = await supabase.from('clients').update({
+        status: 'Accepted',
+        lawyer_email: lawyerEmail
+      }).eq('email', clientEmail);
+      if (cErr) throw cErr;
+
+      const { error: csErr } = await supabase.from('cases').update({
+        status: 'Accepted',
+        lawyer_email: lawyerEmail,
+        lawyer_name: lawyerName
+      }).eq('client_email', clientEmail).eq('status', 'Pending');
+      
+      if (csErr) throw csErr;
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'file_case') {
+      const { error } = await supabase.from('cases').insert({
+        id: payload.id,
+        title: payload.title,
+        category: payload.issueType,
+        details: payload.details,
+        client_email: payload.clientEmail,
+        status: 'Pending'
+      });
+      if (error) throw error;
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'solve_case') {
+      const { caseId, lawyerEmail } = payload;
+      const { data: caseData } = await supabase.from('cases').select('client_email').eq('id', caseId).eq('lawyer_email', lawyerEmail).single();
+      if (!caseData) return NextResponse.json({ error: 'Case not found or unauthorized' }, { status: 403 });
+
+      const { error: csErr } = await supabase.from('cases').update({ status: 'Solved' }).eq('id', caseId);
+      if (csErr) throw csErr;
+
+      const { error: cErr } = await supabase.from('clients').update({ status: 'Solved' }).eq('email', caseData.client_email);
+      if (cErr) throw cErr;
+
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  } catch (err: any) {
+    console.error('Supabase POST Error:', err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }
