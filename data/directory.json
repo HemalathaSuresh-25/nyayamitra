@@ -1,0 +1,91 @@
+{
+  "clients": [
+    {
+      "email": "harish1234@gmail.com",
+      "name": "Harish",
+      "phone": "9436776899",
+      "about": "[Urgency: Medium] I lost my wallet and important documents",
+      "role": "client",
+      "isVerified": true,
+      "status": "Solved",
+      "acceptedBy": "Yeswanth",
+      "acceptedByEmail": "yeswanth02122005@gmail.com",
+      "acceptedAt": 1777319851086,
+      "rejectedBy": []
+    },
+    {
+      "email": "hemalatha.s.2505@gmail.com",
+      "name": "Hemalatha",
+      "phone": "9025490287",
+      "about": "[Urgency: Medium] There is a dispute regarding my land ownership",
+      "role": "client",
+      "isVerified": true,
+      "rejectedBy": [
+        "diya2505@gmail.com"
+      ]
+    }
+  ],
+  "lawyers": [
+    {
+      "email": "swetha2005@gmail.com",
+      "name": "swetha2005",
+      "phone": "",
+      "about": "",
+      "role": "lawyer",
+      "domain": "General Practice",
+      "solvedCases": 0,
+      "isVerified": true
+    },
+    {
+      "email": "yeswanth02122005@gmail.com",
+      "name": "Yeswanth",
+      "phone": "+919360412261",
+      "about": "",
+      "role": "lawyer",
+      "domain": "Criminal",
+      "solvedCases": "20",
+      "isVerified": true
+    },
+    {
+      "email": "diya2505@gmail.com",
+      "name": "diya2505",
+      "phone": "",
+      "about": "",
+      "role": "lawyer",
+      "domain": "General Practice",
+      "solvedCases": 0,
+      "isVerified": true
+    }
+  ],
+  "chats": {
+    "harish1234@gmail.com__yeswanth02122005@gmail.com": [
+      {
+        "sender": "harish1234@gmail.com",
+        "text": "hi",
+        "ts": 1777319454453
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "CASE-1643",
+      "clientName": "Hemalatha",
+      "clientEmail": "hemalatha.s.2505@gmail.com",
+      "issueType": "Civil",
+      "description": "There is a dispute regarding my land ownership",
+      "status": "Pending",
+      "assignedLawyer": null,
+      "timestamp": 1777319245259
+    },
+    {
+      "id": "CASE-8951",
+      "clientName": "Harish",
+      "clientEmail": "harish1234@gmail.com",
+      "issueType": "Other",
+      "description": "I lost my wallet and important documents",
+      "status": "Solved",
+      "assignedLawyer": null,
+      "timestamp": 1777316856900
+    }
+  ]
+}
