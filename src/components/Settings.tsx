@@ -330,6 +330,15 @@ export default function Settings({
         </button>
         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '24px' }}>NyayaMitra v2.0.0 • Made with ❤️ for Justice</p>
       </div>
+    <style jsx>{`
+      @media (max-width: 768px) {
+        .glass-panel div { padding: 12px 14px !important; }
+        .glass-panel span { font-size: 0.9rem !important; }
+        select { padding: 4px 8px !important; font-size: 0.85rem !important; }
+        h2 { font-size: 1.5rem !important; }
+        h3 { font-size: 0.8rem !important; }
+      }
+    `}</style>
     </div>
   );
 }

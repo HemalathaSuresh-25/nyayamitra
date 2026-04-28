@@ -66,6 +66,8 @@ export default function ChatBox({ messages, isProcessing = false, language = 'en
     }
   }, []);
 
+  const speakingRef = useRef<number | null>(null);
+
   const speakMessage = (text: string, index: number) => {
     if (!('speechSynthesis' in window)) {
       alert("Text-to-speech is not supported by your browser.");
@@ -80,6 +82,7 @@ export default function ChatBox({ messages, isProcessing = false, language = 'en
         (window as any)._currentAudio = null;
       }
       setSpeakingIndex(null);
+      speakingRef.current = null;
       return;
     }
 
@@ -103,75 +106,43 @@ export default function ChatBox({ messages, isProcessing = false, language = 'en
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .trim();
 
-    const chunks: string[] = [];
-    const rawChunks = cleanText.split(/([.!?।\n]+)/);
-    
-    let currentLine = "";
-    for (const part of rawChunks) {
-      if (!part) continue;
-      if (part.length > 150) {
-        if (currentLine) chunks.push(currentLine);
-        currentLine = "";
-        const words = part.split(/(\s+)/);
-        let subLine = "";
-        for (const word of words) {
-          if (subLine.length + word.length > 150) {
-            if (subLine) chunks.push(subLine);
-            subLine = word;
-          } else {
-            subLine += word;
-          }
-        }
-        currentLine = subLine;
-      } else if (currentLine.length + part.length > 150) {
-        if (currentLine) chunks.push(currentLine);
-        currentLine = part;
-      } else {
-        currentLine += part;
-      }
-    }
-    if (currentLine) chunks.push(currentLine);
-
+    const chunks = cleanText.split(/[.!?।\n]+/).filter(c => c.trim().length > 0);
     let currentChunk = 0;
+    
     setSpeakingIndex(index);
+    speakingRef.current = index;
 
     const playNext = async () => {
+      // Check if we should still be playing
+      if (speakingRef.current !== index) return;
+
       if (currentChunk >= chunks.length) {
         setSpeakingIndex(null);
+        speakingRef.current = null;
         return;
       }
 
       const textToSpeak = chunks[currentChunk].trim();
-      if (!textToSpeak) {
-        currentChunk++;
-        playNext();
-        return;
-      }
-
       const targetLangPrefix = language.split('-')[0].toLowerCase();
       
-      // 1. Try to find a high-quality "Online" voice first (Chrome/Edge often have these)
+      // 1. Try to find a high-quality "Online" voice first
       let voices = window.speechSynthesis.getVoices();
-      if (voices.length === 0) {
-        await new Promise(r => setTimeout(r, 200)); // Wait longer for voices to load
-        voices = window.speechSynthesis.getVoices();
-      }
-
       const langMatch = (v: SpeechSynthesisVoice) => v.lang.replace('_', '-').toLowerCase();
       const isOnline = (v: SpeechSynthesisVoice) => v.name.toLowerCase().includes('online') || v.name.toLowerCase().includes('google');
       
       let bestVoice = voices.find(v => langMatch(v).startsWith(targetLangPrefix) && isOnline(v));
       
       if (bestVoice) {
-        console.log(`TTS: Found Online Voice: ${bestVoice.name}`);
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
         utterance.voice = bestVoice;
         utterance.lang = bestVoice.lang;
-        utterance.onend = () => { currentChunk++; playNext(); };
-        utterance.onerror = () => {
-          console.warn("Online voice failed, trying cloud fallback...");
-          useCloudFallback(textToSpeak, targetLangPrefix);
+        utterance.onend = () => { 
+          if (speakingRef.current === index) {
+            currentChunk++; 
+            playNext(); 
+          }
         };
+        utterance.onerror = () => useCloudFallback(textToSpeak, targetLangPrefix);
         window.speechSynthesis.speak(utterance);
         return;
       }
@@ -181,39 +152,30 @@ export default function ChatBox({ messages, isProcessing = false, language = 'en
     };
 
     const useCloudFallback = (textToSpeak: string, langPrefix: string) => {
-      console.log(`TTS: Using Server-Side Proxy for ${langPrefix}`);
-      // Using our own local proxy to bypass browser security and CORS issues
       const url = `/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=${langPrefix}`;
-      
       const audio = new Audio();
       audio.src = url;
       (window as any)._currentAudio = audio;
       
       audio.onended = () => {
-        (window as any)._currentAudio = null;
-        currentChunk++;
-        playNext();
+        if (speakingRef.current === index) {
+          (window as any)._currentAudio = null;
+          currentChunk++;
+          playNext();
+        }
       };
 
       audio.onerror = () => {
-        const err = audio.error ? ` (Code: ${audio.error.code})` : "";
-        console.error("TTS Proxy Error" + err);
-        if (currentChunk === 0) {
-          alert("Voice is temporarily unavailable. Please try again in a few seconds.");
-        }
         setSpeakingIndex(null);
+        speakingRef.current = null;
       };
 
-      audio.play().catch(err => {
-        console.warn("Audio blocked:", err);
-        if (currentChunk === 0) {
-          alert("Please click the button again to start voice.");
-        }
+      audio.play().catch(() => {
         setSpeakingIndex(null);
+        speakingRef.current = null;
       });
     };
 
-    // Start
     playNext();
   };
 

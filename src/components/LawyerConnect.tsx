@@ -79,7 +79,7 @@ function PeerChat({ me, target, onClose }: { me: string; target: any; onClose: (
 }
 
 // ── Profile View Modal ───────────────────────────────────────────────
-function ProfileView({ user, onClose, onChat }: { user: any; onClose: () => void; onChat: () => void }) {
+function ProfileView({ user, onClose, onChat, currentEmail, clients }: { user: any, onClose: () => void, onChat: () => void, currentEmail: string, clients: any[] }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 8000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(10px)' }}>
       <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', padding: '40px', borderRadius: '24px' }}>
@@ -96,18 +96,57 @@ function ProfileView({ user, onClose, onChat }: { user: any; onClose: () => void
             <p style={{ margin: '4px 0 0', color: 'var(--primary)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>{user.role}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>
-          {[
-            { label: 'Email', value: user.email },
-            { label: 'Phone', value: user.phone },
-            { label: 'Case / About', value: user.about },
-            user.role === 'lawyer' && { label: 'Specialization', value: user.domain },
-          ].filter(Boolean).map((f: any, i) => f.value && (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '14px 18px' }}>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{f.label}</p>
-              <p style={{ margin: '4px 0 0', fontWeight: 600 }}>{f.value}</p>
-            </div>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
+          {(() => {
+            const isLawyerAcceptedMe = user.role === 'lawyer' && clients.find(c => c.email.toLowerCase() === currentEmail.toLowerCase())?.lawyer_email?.toLowerCase() === user.email.toLowerCase();
+            const isClientAcceptedByMe = user.role === 'client' && user.lawyer_email?.toLowerCase() === currentEmail.toLowerCase();
+            const hasAccess = isLawyerAcceptedMe || isClientAcceptedByMe || user.email.toLowerCase() === currentEmail.toLowerCase();
+
+            if (user.role === 'lawyer') {
+              return (
+                <>
+                  {[
+                    { label: 'Email', value: user.email },
+                    { label: 'Phone', value: hasAccess ? (user.phone || user.bio?.match(/\+91\d+/)?.[0]) : '🔒 Locked' },
+                    { label: 'Council ID', value: hasAccess ? user.council_id : '🔒 Locked' },
+                    { label: 'Domain', value: user.domain || user.experience },
+                    { label: 'Cases Solved', value: user.solved_cases },
+                  ].map((f: any, i) => (
+                    <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '14px' }}>
+                      <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>{f.label}</p>
+                      <p style={{ margin: '4px 0 0', fontWeight: 600, fontSize: '0.9rem' }}>{f.value || 'N/A'}</p>
+                    </div>
+                  ))}
+                  <div style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '14px' }}>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>Professional Bio</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', lineHeight: 1.5 }}>{hasAccess ? (user.about || user.bio || 'Professional legal advisor.') : 'Profile details are hidden until case is accepted.'}</p>
+                  </div>
+                </>
+              );
+            } else {
+              return (
+                <>
+                  {[
+                    { label: 'Email', value: user.email },
+                    { label: 'Phone', value: hasAccess ? user.phone : '🔒 Locked' },
+                    { label: 'Address', value: hasAccess ? user.address : '🔒 Locked' },
+                    { label: 'Status', value: user.status || 'Active' },
+                  ].map((f: any, i) => (
+                    <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '14px' }}>
+                      <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>{f.label}</p>
+                      <p style={{ margin: '4px 0 0', fontWeight: 600, fontSize: '0.9rem' }}>{f.value || 'N/A'}</p>
+                    </div>
+                  ))}
+                  <div style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '14px' }}>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>Case Details & Urgency</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                      {hasAccess ? (user.about || user.details || 'No details provided.') : 'Case details are hidden until accepted by a lawyer.'}
+                    </p>
+                  </div>
+                </>
+              );
+            }
+          })()}
         </div>
         <button onClick={onChat} className="btn-primary" style={{ width: '100%', padding: '14px', borderRadius: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
           <MessageSquare size={20} /> Start Chat
@@ -177,10 +216,11 @@ export default function LawyerConnect() {
               email: u.email,
               name: profile.name || u.email.split('@')[0],
               phone: profile.phone || '',
-              about: profile.about || '',
+              about: profile.about || profile.bio || '',
               role: 'lawyer',
-              domain: profile.domain || 'General Practice',
-              solvedCases: profile.solvedCases || 0,
+              domain: profile.domain || profile.experience || 'General Practice',
+              council_id: profile.councilId || '',
+              solved_cases: profile.solvedCases || '0',
               isVerified: true,
             }
           })
@@ -228,6 +268,20 @@ export default function LawyerConnect() {
     setActionLoading(null);
   };
 
+  const handleUndoAccept = async (client: any) => {
+    setActionLoading('undo_' + client.email);
+    await fetch('/api/directory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'undo_accept',
+        payload: { clientEmail: client.email }
+      })
+    });
+    await fetchDirectories();
+    setActionLoading(null);
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -253,7 +307,8 @@ export default function LawyerConnect() {
       await fetchDirectories();
       alert('✅ Profile registered! Lawyers can now see your case details.');
     } else {
-      alert('Registration failed. Please try again.');
+      const data = await res.json();
+      alert(`Registration failed: ${data.error || 'Unknown error'}`);
     }
   };
 
@@ -266,9 +321,9 @@ export default function LawyerConnect() {
   const myClientProfile = clients.find(c => c.email.toLowerCase() === currentEmail.toLowerCase());
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto', width: '100%' }}>
+    <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto', width: '100%' }} className="responsive-container">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '32px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '32px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '20px' }} className="directory-header">
         <div>
           <h2 className="gradient-text" style={{ fontSize: '2rem', fontWeight: 800, margin: 0 }}>Nyaya Connect</h2>
           <p style={{ color: 'var(--text-muted)', marginTop: '6px', fontSize: '0.9rem' }}>
@@ -280,21 +335,52 @@ export default function LawyerConnect() {
         </button>
       </div>
 
-      {/* ── LAWYER VIEW: Clients Directory ── */}
+      {/* ── LAWYER VIEW: My Clients & Directory ── */}
       {userRole === 'lawyer' && (
         <section>
+          {/* My Active Clients Section */}
+          {(() => {
+            const myActiveClients = clients.filter(c => c.lawyer_email?.toLowerCase() === currentEmail.toLowerCase());
+            if (myActiveClients.length === 0) return null;
+            return (
+              <div style={{ marginBottom: '40px', padding: '24px', background: 'rgba(16,185,129,0.05)', borderRadius: '24px', border: '1px solid rgba(16,185,129,0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                  <CheckCircle2 size={20} color="#10b981" />
+                  <h3 style={{ margin: 0, color: '#10b981' }}>My Active Clients</h3>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }} className="grid-responsive">
+                  {myActiveClients.map(c => (
+                    <div key={c.email} style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><User size={20} color="white" /></div>
+                        <div>
+                          <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{c.name}</p>
+                          <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{c.email}</p>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => setProfileTarget(c)} className="btn-secondary" style={{ padding: '6px', borderRadius: '8px' }}><Eye size={16} /></button>
+                        <button onClick={() => setChatTarget(c)} className="btn-primary" style={{ padding: '6px', borderRadius: '8px' }}><MessageSquare size={16} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
             <Users size={20} color="var(--primary)" />
             <h3 style={{ margin: 0, fontWeight: 700 }}>Clients Directory</h3>
             <span style={{ background: 'var(--primary)', color: 'white', borderRadius: '20px', padding: '2px 12px', fontSize: '0.75rem', fontWeight: 700 }}>{clients.length}</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-            {clients.map(c => {
+            {clients.filter(c => c.status !== 'Solved').map(c => {
               const chatKey = [currentEmail, c.email].sort().join('__');
               const unread = unreadCounts[chatKey] || 0;
-              const isAcceptedByMe = c.acceptedByEmail === currentEmail;
+              const isAcceptedByMe = c.lawyer_email?.toLowerCase() === currentEmail.toLowerCase();
               const isAccepted = c.status === 'Accepted';
-              const isRejectedByMe = (c.rejectedBy || []).includes(currentEmail);
+              const isRejectedByMe = (c.rejected_by || []).includes(currentEmail);
               const isLoadingAccept = actionLoading === c.email;
               const isLoadingReject = actionLoading === ('reject_' + c.email);
               return (
@@ -313,7 +399,7 @@ export default function LawyerConnect() {
                   )}
                   {!isAcceptedByMe && !isRejectedByMe && isAccepted && (
                     <span style={{ background: 'rgba(99,102,241,0.12)', color: 'var(--primary)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '2px 10px', fontSize: '0.7rem', fontWeight: 800 }}>
-                      Taken
+                      Assigned
                     </span>
                   )}
                   {unread > 0 && (
@@ -348,10 +434,11 @@ export default function LawyerConnect() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleRejectClient(c)}
+                      onClick={() => handleUndoAccept(c)}
+                      disabled={actionLoading === 'undo_' + c.email}
                       style={{ flex: 1, padding: '9px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 700, border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer', background: 'rgba(239,68,68,0.08)', color: '#ef4444' }}
                     >
-                      <XCircle size={13} /> Undo Accept
+                      <XCircle size={13} /> {actionLoading === 'undo_' + c.email ? '...' : 'Undo Accept'}
                     </button>
                   )}
 
@@ -433,23 +520,51 @@ export default function LawyerConnect() {
             )}
           </div>
 
-          {/* My Profile Preview */}
-          {myClientProfile && (
-            <div style={{ marginTop: '40px', padding: '24px 28px', borderRadius: '20px', background: 'rgba(79,70,229,0.06)', border: '1px dashed rgba(99,102,241,0.4)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <h4 style={{ margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem' }}><ShieldCheck size={18} /> My Registered Profile (visible to all lawyers)</h4>
-                <button onClick={() => setShowRegModal(true)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', borderRadius: '8px', padding: '4px 12px', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
-              </div>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><User size={22} color="white" /></div>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 700 }}>{myClientProfile.name}</p>
-                  {myClientProfile.phone && <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{myClientProfile.phone}</p>}
-                  {myClientProfile.about && <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{myClientProfile.about}</p>}
+          {/* My Profile & Assigned Lawyer */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
+            {myClientProfile && (
+              <div style={{ padding: '24px 28px', borderRadius: '24px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                  <h4 style={{ margin: 0, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><User size={16} /> My Profile</h4>
+                  <button onClick={() => setShowRegModal(true)} style={{ background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>Edit</button>
+                </div>
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><User size={24} color="var(--primary)" /></div>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>{myClientProfile.name}</p>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{myClientProfile.email}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Assigned Lawyer Card */}
+            {(() => {
+              const assignedLawyer = lawyers.find(l => l.email.toLowerCase() === myClientProfile?.lawyer_email?.toLowerCase());
+              if (!assignedLawyer) return null;
+              return (
+                <div style={{ padding: '24px 28px', borderRadius: '24px', background: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(5,150,105,0.05))', border: '1px solid rgba(16,185,129,0.2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <h4 style={{ margin: 0, color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}><ShieldCheck size={16} /> My Assigned Lawyer</h4>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#10b981', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>ACTIVE CASE</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                      <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Scale size={28} color="white" /></div>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>Adv. {assignedLawyer.name}</p>
+                        <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: '#10b981', fontWeight: 600 }}>{assignedLawyer.domain || 'Legal Expert'}</p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button onClick={() => setProfileTarget(assignedLawyer)} className="btn-secondary" style={{ padding: '10px 18px', borderRadius: '12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Eye size={16} /> View Profile</button>
+                      <button onClick={() => setChatTarget(assignedLawyer)} className="btn-primary" style={{ padding: '10px 18px', borderRadius: '12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}><MessageSquare size={16} /> Chat Now</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
 
           {/* My Conversations */}
           {userConversations.length > 0 && (
@@ -532,10 +647,30 @@ export default function LawyerConnect() {
       )}
 
       {/* Profile Modal */}
-      {profileTarget && <ProfileView user={profileTarget} onClose={() => setProfileTarget(null)} onChat={() => { setChatTarget(profileTarget); setProfileTarget(null); }} />}
+      {profileTarget && (
+        <ProfileView 
+          user={profileTarget} 
+          onClose={() => setProfileTarget(null)} 
+          onChat={() => {
+            setChatTarget(profileTarget);
+            setProfileTarget(null);
+          }}
+          currentEmail={currentEmail}
+          clients={clients}
+        />
+      )}
 
       {/* Chat Modal */}
       {chatTarget && <PeerChat me={currentEmail} target={chatTarget} onClose={() => setChatTarget(null)} />}
+      
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .directory-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .grid-responsive { grid-template-columns: 1fr !important; }
+          .profile-grid { grid-template-columns: 1fr !important; }
+          .glass-panel { padding: 24px 16px !important; }
+        }
+      `}</style>
     </div>
   );
 }

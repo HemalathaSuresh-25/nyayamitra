@@ -1,21 +1,29 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 async function callGemini(apiKey: string, prompt: string, retries = 3): Promise<string> {
-  const genAI = new GoogleGenAI({ apiKey });
+  const genAI = new GoogleGenerativeAI(apiKey);
+  // Using the latest 2026 models: gemini-2.5-flash or gemini-flash-latest
+  let modelName = "gemini-2.5-flash";
+  let model = genAI.getGenerativeModel({ model: modelName });
   
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      // Using gemini-flash-latest which is the correct current model name
-      const response = await genAI.models.generateContent({
-        model: 'gemini-flash-latest',
-        contents: prompt,
-      });
-      return response.text || "I couldn't generate a response. Please try again.";
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      return response.text() || "I couldn't generate a response. Please try again.";
     } catch (err: any) {
       console.error(`Gemini attempt ${attempt}/${retries} failed:`, err?.message);
+      
+      // Fallback to the latest alias if 2.5 fails
+      if (err?.message?.includes('404') && modelName !== "gemini-flash-latest") {
+        console.log("Switching to gemini-flash-latest...");
+        modelName = "gemini-flash-latest";
+        model = genAI.getGenerativeModel({ model: modelName });
+        continue;
+      }
+
       if (attempt === retries) throw err;
-      // Wait before retry (1s, 2s, 3s)
       await new Promise(r => setTimeout(r, attempt * 1000));
     }
   }

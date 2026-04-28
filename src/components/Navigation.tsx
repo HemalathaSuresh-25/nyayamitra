@@ -72,6 +72,27 @@ export default function Navigation({ activeTab, onTabChange }: NavigationProps) 
           </button>
         );
       })}
+    <style jsx>{`
+      @media (max-width: 768px) {
+        nav { 
+          bottom: 0 !important; 
+          width: 100% !important; 
+          border-radius: 0 !important; 
+          border-top: 1px solid rgba(255,255,255,0.08) !important;
+          padding: 6px !important;
+          gap: 4px !important;
+        }
+        button { 
+          min-width: 0 !important; 
+          padding: 8px 4px !important; 
+          flex: 1 !important;
+        }
+        button span { 
+          font-size: 0.6rem !important; 
+          display: ${tabs.length > 5 ? 'none' : 'block'} !important; 
+        }
+      }
+    `}</style>
     </nav>
   );
 }

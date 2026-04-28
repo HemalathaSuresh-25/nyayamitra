@@ -177,6 +177,18 @@ export default function Home() {
         .font-small button, .font-small input, .font-small select, .font-small textarea { font-size: 0.85rem !important; }
         .font-medium button, .font-medium input, .font-medium select, .font-medium textarea { font-size: 1rem !important; }
         .font-large button, .font-large input, .font-large select, .font-large textarea { font-size: 1.1rem !important; }
+
+        @media (max-width: 600px) {
+          .container { padding-bottom: 80px !important; }
+          main { height: auto !important; min-height: 100vh !important; }
+          .font-medium h2 { font-size: 1.6rem !important; }
+          .font-medium h3 { font-size: 1.2rem !important; }
+          .font-medium p, .font-medium span, .font-medium div, .font-medium label { font-size: 0.9rem !important; }
+          .font-medium button { padding: 10px 16px !important; }
+          header { padding: 12px 16px !important; }
+          nav { height: 65px !important; padding: 0 10px !important; }
+          nav button span { display: none !important; } /* Hide text on very small screens if needed */
+        }
       `}</style>
     </main>
   );

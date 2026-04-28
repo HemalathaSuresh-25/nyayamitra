@@ -38,28 +38,34 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     }
   }, [isOpen]);
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     localStorage.setItem(`nyaya_profile_${profile.email}`, JSON.stringify(profile));
     
-    // Sync with global directories
-    const listKey = userRole === 'lawyer' ? 'nyaya_lawyers' : 'nyaya_clients';
-    const list = JSON.parse(localStorage.getItem(listKey) || '[]');
-    const index = list.findIndex((u: any) => u.email === profile.email);
-    
-    const updatedUser = {
+    // Sync with database
+    const action = userRole === 'lawyer' ? 'register_lawyer' : 'register_client';
+    const payload = {
       ...profile,
       role: userRole,
+      // Map form fields to DB fields
+      council_id: profile.barId,
+      solved_cases: String(profile.solvedCases),
+      isVerified: true
     };
 
-    if (index > -1) {
-      list[index] = updatedUser;
-    } else {
-      list.push(updatedUser);
+    try {
+      const res = await fetch('/api/directory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, payload })
+      });
+      if (!res.ok) throw new Error('Failed to sync with database');
+      
+      onClose();
+      alert('✅ Profile updated and synced globally!');
+    } catch (err: any) {
+      console.error(err);
+      alert('Error updating database: ' + err.message);
     }
-    localStorage.setItem(listKey, JSON.stringify(list));
-
-    onClose();
-    alert('Profile updated successfully!');
   };
 
   const inputStyle = {
@@ -213,6 +219,12 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         }
         .animate-slide-up {
           animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @media (max-width: 600px) {
+          .glass-panel { padding: 24px 16px !important; border-radius: 0 !important; }
+          .glass-panel h3 { font-size: 1.4rem !important; }
+          .glass-panel input, .glass-panel textarea { font-size: 1rem !important; }
+          .glass-panel button { padding: 14px !important; }
         }
       `}</style>
     </div>

@@ -67,10 +67,10 @@ export default function CaseTracking() {
   // ── filter / search ────────────────────────────────────────────────
   const filtered = enriched.filter(c => {
     const matchSearch = !search ||
-      c.clientName?.toLowerCase().includes(search.toLowerCase()) ||
-      c.description?.toLowerCase().includes(search.toLowerCase()) ||
-      c.issueType?.toLowerCase().includes(search.toLowerCase()) ||
-      c.id?.toLowerCase().includes(search.toLowerCase());
+      (c.client_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.details || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.category || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.id || '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'All' || c.effectiveStatus === filterStatus;
     return matchSearch && matchStatus;
   });
@@ -98,17 +98,27 @@ export default function CaseTracking() {
   const handleNewComplaint = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    const user = JSON.parse(localStorage.getItem('nyaya_user') || '{}');
+    
+    if (!user.email) {
+      alert('Error: Session expired. Please log in again.');
+      setSubmitting(false);
+      return;
+    }
+
     const caseId = `CASE-${Math.floor(1000 + Math.random() * 9000)}`;
     const newCase = {
       id: caseId,
-      clientName: formData.name,
-      clientEmail: currentEmail,
-      issueType: formData.category,
-      description: formData.details,
-      status: 'Pending',
-      assignedLawyer: null,
-      timestamp: Date.now(),
+      title: `${formData.category} Case - ${formData.name}`,
+      client_name: formData.name,
+      client_email: user.email,
+      category: formData.category,
+      details: formData.details,
+      status: 'Pending'
     };
+
+    console.log('Filing case with payload:', newCase);
+
     const res = await fetch('/api/directory', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -120,7 +130,8 @@ export default function CaseTracking() {
       setFormData(d => ({ ...d, category: 'Civil', details: '' }));
       fetchAll();
     } else {
-      alert('Failed to file complaint. Please try again.');
+      const errData = await res.json();
+      alert(`Failed to file complaint: ${errData.error || 'Unknown error'}`);
     }
   };
 
@@ -138,10 +149,10 @@ export default function CaseTracking() {
   );
 
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
+    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1000px', margin: '0 auto', width: '100%' }} className="responsive-container">
 
       {/* ── Header ── */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '12px' }} className="case-header">
         <div>
           <h2 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
             Case Tracking
@@ -254,7 +265,7 @@ export default function CaseTracking() {
                         {c.id}
                       </span>
                       <span style={{ fontSize: '0.7rem', padding: '2px 9px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        {c.issueType}
+                        {c.category || c.issueType}
                       </span>
                     </div>
 
@@ -274,7 +285,7 @@ export default function CaseTracking() {
 
                   {/* Description */}
                   <p style={{ color: 'var(--text-main)', fontSize: '0.92rem', marginBottom: '14px', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {c.description || 'No description provided.'}
+                    {c.details || 'No description provided.'}
                   </p>
 
                   {/* Footer: filed by + date + lawyer — NO email/phone */}
@@ -285,17 +296,17 @@ export default function CaseTracking() {
                         {/* Filed by — name only, no email */}
                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           <User size={13} />
-                          Filed by <strong style={{ color: 'var(--text-main)', marginLeft: '3px' }}>{c.clientName || 'Anonymous'}</strong>
+                          Filed by <strong style={{ color: 'var(--text-main)', marginLeft: '3px' }}>{c.client_name || 'Anonymous'}</strong>
                         </span>
                         {/* Date */}
                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                           <Calendar size={13} />
-                          {new Date(c.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {new Date(c.created_at || c.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       </div>
 
                       {/* Lawyer info or waiting */}
-                      {c.effectiveLawyer ? (
+                      {c.lawyer_name || c.effectiveLawyer ? (
                         <div style={{
                           display: 'flex', alignItems: 'center', gap: '7px',
                           padding: '6px 14px',
@@ -305,7 +316,7 @@ export default function CaseTracking() {
                           fontSize: '0.82rem', fontWeight: 600,
                           border: isSolved ? '1px solid rgba(139,92,246,0.2)' : '1px solid rgba(16,185,129,0.2)'
                         }}>
-                          <Briefcase size={14} /> Adv. {c.effectiveLawyer}
+                          <Briefcase size={14} /> Adv. {c.lawyer_name || c.effectiveLawyer}
                         </div>
                       ) : (
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -318,9 +329,9 @@ export default function CaseTracking() {
                     {userRole === 'lawyer' && isAccepted && !isSolved && (() => {
                       // Find the client in directory to check if this lawyer accepted them
                       const dirClient = allClients.find(
-                        dc => dc.email?.toLowerCase() === (c.clientEmail || '').toLowerCase()
+                        dc => dc.email?.toLowerCase() === (c.client_email || c.clientEmail || '').toLowerCase()
                       );
-                      const isMyCase = dirClient?.acceptedByEmail?.toLowerCase() === currentEmail.toLowerCase();
+                      const isMyCase = dirClient?.lawyer_email?.toLowerCase() === currentEmail.toLowerCase() || c.lawyer_email?.toLowerCase() === currentEmail.toLowerCase();
                       if (!isMyCase) return null;
                       return (
                         <button
@@ -399,6 +410,14 @@ export default function CaseTracking() {
       <style jsx global>{`
         .glass-panel { transition: transform 0.2s; }
         .glass-panel:hover { transform: translateY(-1px); }
+      `}</style>
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .case-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .case-header button { width: 100% !important; }
+          .glass-panel { padding: 20px 16px !important; flex-direction: column !important; }
+          .glass-panel > div { width: 100% !important; }
+        }
       `}</style>
     </div>
   );

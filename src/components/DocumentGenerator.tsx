@@ -144,6 +144,14 @@ export default function DocumentGenerator({ userName = '[Your Name]' }: Document
           </div>
         </div>
       )}
+    <style jsx>{`
+      @media (max-width: 768px) {
+        .glass-panel { padding: 20px !important; width: 95% !important; margin: 10px !important; }
+        .preview-header { font-size: 1.2rem !important; }
+        .action-btns { flex-direction: column !important; width: 100% !important; }
+        .action-btns button { width: 100% !important; }
+      }
+    `}</style>
     </div>
   );
 }

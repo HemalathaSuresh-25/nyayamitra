@@ -145,7 +145,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         
         {/* Logo */}
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-          <div style={{
+          <div className="logo-box" style={{
             background: 'var(--gradient-primary)',
             padding: '18px',
             borderRadius: '20px',
@@ -259,11 +259,17 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           By signing in, you agree to NyayaMitra's Terms of Service and Privacy Policy.
         </p>
 
-        <style>{`
-          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-          .animate-spin { animation: spin 1s linear infinite; }
-        `}</style>
-      </div>
+      <style jsx>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin { animation: spin 1s linear infinite; }
+        @media (max-width: 480px) {
+          .glass-panel { padding: 24px !important; }
+          h1 { font-size: 1.5rem !important; }
+          .logo-box { padding: 12px !important; }
+          .logo-box svg { width: 28px !important; height: 28px !important; }
+        }
+      `}</style>
     </div>
-  );
+  </div>
+);
 }

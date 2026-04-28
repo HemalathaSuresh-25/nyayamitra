@@ -257,6 +257,14 @@ export default function LocationFinder() {
           </div>
         )}
       </div>
+    <style jsx>{`
+      @media (max-width: 768px) {
+        .type-btns { flex-direction: column !important; gap: 8px !important; }
+        .type-btns button { width: 100% !important; padding: 12px !important; }
+        .map-container { min-height: 300px !important; }
+        header h2 { font-size: 1.2rem !important; }
+      }
+    `}</style>
     </div>
   );
 }

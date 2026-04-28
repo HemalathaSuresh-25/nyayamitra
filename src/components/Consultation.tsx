@@ -166,79 +166,100 @@ export default function Consultation({ language, setLanguage, isVoiceEnabled }: 
     }
   }, [language, messages, currentSessionId]);
 
+  // Auto-hide sidebar on mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth < 768) setShowSidebar(false);
+        else setShowSidebar(true);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', height: '100%' }}>
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', height: '100%' }} className="consult-container">
       
       {/* Sidebar - History */}
-      {showSidebar && (
-        <div style={{ 
-          width: '280px', 
-          background: 'rgba(15, 23, 42, 0.3)', 
-          borderRight: '1px solid rgba(255, 255, 255, 0.05)',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '16px',
-          gap: '20px'
-        }}>
-          <button 
-            onClick={startNewChat}
-            className="btn-primary"
-            style={{ 
-              width: '100%', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              gap: '8px',
-              padding: '12px',
-              borderRadius: '12px',
-              fontSize: '0.9rem'
-            }}
-          >
-            <Plus size={18} /> New Chat
-          </button>
+      <div style={{ 
+        width: showSidebar ? '280px' : '0', 
+        opacity: showSidebar ? 1 : 0,
+        background: 'rgba(15, 23, 42, 0.3)', 
+        borderRight: showSidebar ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: showSidebar ? '16px' : '0',
+        gap: '20px',
+        transition: 'all 0.3s ease',
+        overflow: 'hidden',
+        position: window.innerWidth < 768 ? 'absolute' : 'relative',
+        zIndex: 100,
+        height: '100%'
+      }}>
+        <button 
+          onClick={startNewChat}
+          className="btn-primary"
+          style={{ 
+            width: '100%', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            gap: '8px',
+            padding: '12px',
+            borderRadius: '12px',
+            fontSize: '0.9rem',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Plus size={18} /> New Chat
+        </button>
 
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '8px', paddingLeft: '4px' }}>Recent consultations</h3>
-            {sessions.map(session => (
-              <div 
-                key={session.id}
-                onClick={() => loadSession(session)}
-                style={{
-                  padding: '12px',
-                  borderRadius: '10px',
-                  background: currentSessionId === session.id ? 'rgba(79, 70, 229, 0.15)' : 'transparent',
-                  border: currentSessionId === session.id ? '1px solid rgba(79, 70, 229, 0.3)' : '1px solid transparent',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  transition: 'all 0.2s',
-                }}
-                className="session-item"
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                  <MessageSquare size={16} color={currentSessionId === session.id ? 'var(--primary)' : 'var(--text-muted)'} />
-                  <span style={{ 
-                    fontSize: '0.85rem', 
-                    color: currentSessionId === session.id ? 'var(--text-main)' : 'var(--text-muted)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}>
-                    {session.title}
-                  </span>
-                </div>
-                <button 
-                  onClick={(e) => deleteSession(e, session.id)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                >
-                  <Trash2 size={14} className="delete-icon" />
-                </button>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '8px', paddingLeft: '4px' }}>Recent consultations</h3>
+          {sessions.map(session => (
+            <div 
+              key={session.id}
+              onClick={() => {
+                loadSession(session);
+                if (window.innerWidth < 768) setShowSidebar(false);
+              }}
+              style={{
+                padding: '12px',
+                borderRadius: '10px',
+                background: currentSessionId === session.id ? 'rgba(79, 70, 229, 0.15)' : 'transparent',
+                border: currentSessionId === session.id ? '1px solid rgba(79, 70, 229, 0.3)' : '1px solid transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                transition: 'all 0.2s',
+              }}
+              className="session-item"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                <MessageSquare size={16} color={currentSessionId === session.id ? 'var(--primary)' : 'var(--text-muted)'} />
+                <span style={{ 
+                  fontSize: '0.85rem', 
+                  color: currentSessionId === session.id ? 'var(--text-main)' : 'var(--text-muted)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {session.title}
+                </span>
               </div>
-            ))}
-          </div>
+              <button 
+                onClick={(e) => deleteSession(e, session.id)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                <Trash2 size={14} className="delete-icon" />
+              </button>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Main Chat Area */}
       <div className="glass-panel" style={{ 
@@ -252,7 +273,7 @@ export default function Consultation({ language, setLanguage, isVoiceEnabled }: 
         borderRadius: '0'
       }}>
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }} className="chat-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button 
               onClick={() => setShowSidebar(!showSidebar)}
@@ -295,7 +316,7 @@ export default function Consultation({ language, setLanguage, isVoiceEnabled }: 
           borderRadius: '40px',
           border: 'var(--glass-border)',
           boxShadow: 'var(--shadow-lg)'
-        }}>
+        }} className="chat-input-container">
           <div style={{ flex: 1, marginLeft: '16px' }}>
             <input 
               type="text" 
@@ -348,6 +369,11 @@ export default function Consultation({ language, setLanguage, isVoiceEnabled }: 
         }
         .session-item:hover .delete-icon {
           opacity: 1;
+        }
+        @media (max-width: 768px) {
+          .glass-panel { padding: 12px !important; }
+          .chat-input-container { margin-bottom: 10px !important; }
+          .chat-header h2 { font-size: 1.1rem !important; }
         }
       `}</style>
     </div>

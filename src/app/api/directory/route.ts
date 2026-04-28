@@ -74,6 +74,9 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.from('clients').upsert({
         email: payload.email,
         name: payload.name,
+        phone: payload.phone,
+        address: payload.address,
+        about: payload.about,
         role: 'client'
       }, { onConflict: 'email' });
       if (error) throw error;
@@ -84,8 +87,11 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.from('lawyers').upsert({
         email: payload.email,
         name: payload.name,
-        bio: payload.bio,
-        experience: payload.experience,
+        bio: payload.about,
+        experience: payload.domain,
+        phone: payload.phone,
+        council_id: payload.council_id,
+        solved_cases: payload.solved_cases,
         role: 'lawyer'
       }, { onConflict: 'email' });
       if (error) throw error;
@@ -108,8 +114,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === 'undo_accept') {
+      const { clientEmail } = payload;
+      const { error: cErr } = await supabase.from('clients').update({
+        status: 'Pending',
+        lawyer_email: null
+      }).eq('email', clientEmail);
+      if (cErr) throw cErr;
+
+      const { error: csErr } = await supabase.from('cases').update({
+        status: 'Pending',
+        lawyer_email: null,
+        lawyer_name: null
+      }).eq('client_email', clientEmail).eq('status', 'Accepted');
+      
+      if (csErr) throw csErr;
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'reject_client') {
+      const { clientEmail, lawyerEmail } = payload;
+      if (!clientEmail || !lawyerEmail) throw new Error('Missing client or lawyer email');
+
+      // Get current client data
+      const { data: clientData, error: fErr } = await supabase
+        .from('clients')
+        .select('rejected_by')
+        .eq('email', clientEmail)
+        .single();
+      
+      if (fErr && fErr.code !== 'PGRST116') throw fErr;
+
+      const currentRejections = clientData?.rejected_by || [];
+      if (!currentRejections.includes(lawyerEmail)) {
+        const { error: uErr } = await supabase
+          .from('clients')
+          .update({
+            rejected_by: [...currentRejections, lawyerEmail]
+          })
+          .eq('email', clientEmail);
+        
+        if (uErr) throw uErr;
+      }
+      return NextResponse.json({ success: true });
+    }
+
     if (action === 'accept_client') {
       const { clientEmail, lawyerEmail, lawyerName } = payload;
+      
+      // Check if already accepted to prevent double-acceptance
+      const { data: currentClient } = await supabase.from('clients').select('status').eq('email', clientEmail).single();
+      if (currentClient?.status === 'Accepted') {
+        return NextResponse.json({ error: 'This client is already accepted by another lawyer.' }, { status: 403 });
+      }
+
       const { error: cErr } = await supabase.from('clients').update({
         status: 'Accepted',
         lawyer_email: lawyerEmail
@@ -127,12 +185,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'file_case') {
+      const { client_email, id } = payload;
+      if (!client_email) throw new Error('Client email is missing in request');
+
       const { error } = await supabase.from('cases').insert({
-        id: payload.id,
+        id: id,
         title: payload.title,
-        category: payload.issueType,
+        category: payload.category,
         details: payload.details,
-        client_email: payload.clientEmail,
+        client_email: client_email,
+        client_name: payload.client_name,
         status: 'Pending'
       });
       if (error) throw error;
@@ -155,7 +217,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (err: any) {
-    console.error('Supabase POST Error:', err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('API Error:', err);
+    return NextResponse.json({ 
+      error: err.message || 'Server error',
+      details: err.details || '',
+      hint: err.hint || ''
+    }, { status: 500 });
   }
 }

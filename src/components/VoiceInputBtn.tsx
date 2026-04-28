@@ -66,24 +66,41 @@ export default function VoiceInputBtn({ onTranscript, language = 'en-IN' }: Voic
   const toggleRecording = () => {
     if (isRecording) {
       recognitionRef.current?.stop();
+      setIsRecording(false);
     } else {
       try {
-        recognitionRef.current?.start();
-        setIsRecording(true);
+        // Reset and start
+        if (recognitionRef.current) {
+          recognitionRef.current.lang = language;
+          recognitionRef.current.start();
+        }
       } catch (err) {
         console.error("Failed to start recognition", err);
+        // If already started, just toggle the state
+        setIsRecording(true);
       }
     }
   };
 
-  if (isSupported === false) {
-    return (
-      <div style={{ color: 'var(--accent)', fontSize: '0.75rem', maxWidth: '80px', textAlign: 'center' }}>
-        Voice not supported
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onresult = (event: any) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          onTranscript(finalTranscript);
+          setIsRecording(false);
+        }
+      };
+    }
+  }, [onTranscript]);
 
+  if (isSupported === false) return null;
   if (isSupported === null) return null;
 
   return (
@@ -92,19 +109,18 @@ export default function VoiceInputBtn({ onTranscript, language = 'en-IN' }: Voic
       disabled={isProcessing}
       title={isRecording ? "Stop Listening" : "Start Voice Input"}
       style={{
-        width: '56px',
-        height: '56px',
+        width: '48px',
+        height: '48px',
         borderRadius: '50%',
         border: 'none',
-        background: isRecording ? 'var(--accent)' : 'var(--gradient-primary)',
+        background: isRecording ? 'var(--accent)' : 'rgba(255,255,255,0.1)',
         color: 'white',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
-        boxShadow: isRecording ? '0 0 20px rgba(244, 63, 94, 0.6)' : 'var(--shadow-glow)',
+        boxShadow: isRecording ? '0 0 15px var(--accent)' : 'none',
         transition: 'all 0.3s ease',
-        transform: isRecording ? 'scale(1.1)' : 'scale(1)',
         position: 'relative',
         flexShrink: 0
       }}
@@ -115,24 +131,12 @@ export default function VoiceInputBtn({ onTranscript, language = 'en-IN' }: Voic
           width: '100%',
           height: '100%',
           borderRadius: '50%',
-          border: '2px solid rgba(255,255,255,0.5)',
-          animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite'
-        }}>
-          <style>{`
-            @keyframes ping {
-              75%, 100% {
-                transform: scale(1.5);
-                opacity: 0;
-              }
-            }
-          `}</style>
-        </span>
+          border: '2px solid var(--accent)',
+          animation: 'ping 1.2s infinite'
+        }} />
       )}
-      {isProcessing ? (
-        <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
-      ) : (
-        isRecording ? <MicOff size={24} /> : <Mic size={24} />
-      )}
+      {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+      <style>{`@keyframes ping { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }`}</style>
     </button>
   );
 }
